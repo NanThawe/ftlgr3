@@ -2,7 +2,7 @@ version: '3.8'
 services:
   backend:
     build: ./code/backend
-    container_name: lecture-backend
+    container_name: lecture1-backend
     ports:
       - "8000:8000"
     volumes:
@@ -12,7 +12,7 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
   frontend:
     build: ./code/frontend
-    container_name: lecture-frontend
+    container_name: lecture1-frontend
     ports:
       - "3000:3000"
     # volumes:

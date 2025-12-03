@@ -15,15 +15,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '16'  # Specify the Node.js version you want to use
+          node-version: '16'
+          cache: 'npm'
+          cache-dependency-path: 'code/frontend/package-lock.json'
 
       - name: Install dependencies
+        working-directory: code/frontend
         run: npm install
 
       - name: Build project
+        working-directory: code/frontend
         run: npm run build  # Adjust this if your project uses a different build command
 
       - name: Deploy to Vercel
+        working-directory: code/frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}  # Pulls Vercel token from GitHub secrets
         run: npx vercel --prod --token $VERCEL_TOKEN
