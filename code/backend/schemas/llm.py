@@ -29,6 +29,7 @@ class ChunkInfo(BaseModel):
     text_preview: str
     start_time: Optional[float] = None
     end_time: Optional[float] = None
+    source_type: Optional[str] = None
 
 class RAGQueryRequest(BaseModel):
     question: str
@@ -42,3 +43,5 @@ class RAGQueryResponse(BaseModel):
 class RAGIndexRequest(BaseModel):
     transcript_text: str
     segments: Optional[List[dict]] = None
+    summary_en: Optional[str] = None
+    summary_mm: Optional[str] = None

@@ -15,7 +15,7 @@ chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
 # Collection for transcript chunks
 collection_name = "transcript_chunks"
 
-RAG_SYSTEM_PROMPT = """You are a helpful assistant answering questions based ONLY on the provided transcript snippets.
+RAG_SYSTEM_PROMPT = """You are a helpful educational assistant answering questions based ONLY on the provided transcript snippets.
 
 IMPORTANT RULES:
 1. ONLY use information from the provided snippets
@@ -24,11 +24,22 @@ IMPORTANT RULES:
 4. Answer in the SAME LANGUAGE as the question. If the question is in Burmese, answer in Burmese. If in English, answer in English.
 5. Use clear, natural formatting:
    - Use numbered lists (1., 2., 3.) for multiple points
-   - Use bullet points (•) for sub-items
-   - DO NOT use markdown bold (**text**) or italic (*text*)
-   - Write in plain text with proper paragraph breaks
+   - Use bullet points (- or •) for sub-items
+   - Use **bold** for emphasis on key terms, formulas, or important concepts
+   - Use proper paragraph breaks for readability
 6. Be concise and clear in B1-B2 level language
-7. Preserve technical terms as-is without translation or modification."""
+7. Preserve technical terms as-is without translation or modification
+8. For equations and mathematical content:
+   - Explain step-by-step when describing calculations
+   - Include the equation or formula exactly as mentioned (use bold for formulas)
+   - Explain what each variable or term represents
+   - If showing an example, walk through the logic clearly
+9. When explaining techniques or methods:
+   - State the technique name clearly in **bold**
+   - Explain the purpose or when to use it
+   - Break down the steps involved
+   - Provide context from the snippets
+10. If snippets contain both summary and detailed content, synthesize them coherently"""
 
 def chunk_transcript_by_segments(segments: List[dict]) -> List[Dict[str, Any]]:
     """Convert ASR segments to chunks."""
@@ -44,22 +55,28 @@ def chunk_transcript_by_segments(segments: List[dict]) -> List[Dict[str, Any]]:
     return chunks
 
 def chunk_transcript_by_text(text: str) -> List[Dict[str, Any]]:
-    """Chunk plain text into overlapping windows."""
+    """Chunk plain text into overlapping windows with semantic awareness."""
+    # Split by sentences but keep equation patterns and technical markers together
+    # Pattern to detect equations: "equals", "=", formulas, etc.
     sentences = re.split(r'(?<=[.!?])\s+', text)
     chunks = []
-    window_size = 5
-    overlap = 2
+    window_size = 7  # Increased from 5 for more context
+    overlap = 3  # Increased from 2 to ensure continuity
     
     for i in range(0, len(sentences), window_size - overlap):
         window = sentences[i:i + window_size]
         chunk_text = " ".join(window)
         if chunk_text.strip():
+            # Detect if chunk contains mathematical or technical content
+            is_technical = bool(re.search(r'\b(equation|formula|theorem|proof|calculate|derive|solve|method|technique|algorithm|step)\b', chunk_text, re.IGNORECASE))
+            
             chunks.append({
                 "chunk_id": f"text_{i}",
                 "text": chunk_text,
                 "start_time": None,
                 "end_time": None,
-                "source_type": "text_chunk"
+                "source_type": "text_chunk",
+                "is_technical": is_technical
             })
     return chunks
 
@@ -102,12 +119,20 @@ def keyword_score(question: str, text: str) -> float:
     overlap = len(q_words & t_words)
     return overlap / len(q_words)
 
-def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None) -> Dict[str, Any]:
-    """Build or update RAG index."""
+def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None, summary_en: Optional[str] = None, summary_mm: Optional[str] = None) -> Dict[str, Any]:
+    """Build or update RAG index with optional summary integration.
+    
+    Args:
+        transcript_text: Raw transcript text
+        segments: Optional ASR segments with timestamps
+        summary_en: Optional English summary (more organized)
+        summary_mm: Optional Burmese summary
+    """
     try:
         print(f"Starting RAG indexing...")
         print(f"Transcript length: {len(transcript_text)} chars")
         print(f"Segments provided: {len(segments) if segments else 0}")
+        print(f"Summary provided: {bool(summary_en)}")
         
         # Determine chunking strategy
         # If only 1 segment, use text-based chunking for better granularity
@@ -116,10 +141,27 @@ def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None)
         else:
             chunks = chunk_transcript_by_text(transcript_text)
         
+        # Add summary chunks if provided - these are more organized and provide better high-level answers
+        if summary_en:
+            summary_chunks = chunk_transcript_by_text(summary_en)
+            for chunk in summary_chunks:
+                chunk["source_type"] = "summary_en"
+                chunk["chunk_id"] = f"summary_en_{chunk['chunk_id']}"
+            chunks.extend(summary_chunks)
+            print(f"Added {len(summary_chunks)} summary chunks (English)")
+        
+        if summary_mm:
+            summary_chunks_mm = chunk_transcript_by_text(summary_mm)
+            for chunk in summary_chunks_mm:
+                chunk["source_type"] = "summary_mm"
+                chunk["chunk_id"] = f"summary_mm_{chunk['chunk_id']}"
+            chunks.extend(summary_chunks_mm)
+            print(f"Added {len(summary_chunks_mm)} summary chunks (Burmese)")
+        
         if not chunks:
             raise ValueError("No chunks generated from transcript")
         
-        print(f"Generated {len(chunks)} chunks")
+        print(f"Generated {len(chunks)} total chunks")
         
         # Compute embeddings
         texts = [c["text"] for c in chunks]
@@ -150,6 +192,8 @@ def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None)
                 metadata["start_time"] = c.get("start_time")
             if c.get("end_time") is not None:
                 metadata["end_time"] = c.get("end_time")
+            if c.get("is_technical") is not None:
+                metadata["is_technical"] = c.get("is_technical")
             metadatas.append(metadata)
         
         collection.add(
@@ -168,12 +212,17 @@ def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None)
         traceback.print_exc()
         raise
 
-def query_rag(question: str, top_k: int = 5, keyword_threshold: float = 0.2) -> Tuple[str, List[Dict[str, Any]], float, bool]:
-    """Query RAG system with two-stage ranking.
+def query_rag(question: str, top_k: int = 10, keyword_threshold: float = 0.15) -> Tuple[str, List[Dict[str, Any]], float, bool]:
+    """Query RAG system with enhanced two-stage ranking.
+    
+    Args:
+        question: User's question
+        top_k: Number of chunks to retrieve (increased for better recall)
+        keyword_threshold: Minimum keyword overlap score (lowered for technical content)
     
     Returns:
         Tuple of (answer, top_chunks, elapsed_ms, from_cache)
-    \"\"\""""
+    """
     
     # Check cache
     cache_key = f"rag:{question}"
@@ -222,24 +271,73 @@ def query_rag(question: str, top_k: int = 5, keyword_threshold: float = 0.2) -> 
         n_results=min(top_k, len(all_chunks))
     )
     
-    # Combine scores: 0.4 * keyword + 0.6 * semantic
+    # Enhanced scoring: prioritize semantic understanding for technical content
+    # Detect if question is technical
+    is_technical_question = bool(re.search(r'\b(how|why|what|explain|calculate|solve|derive|prove|show|formula|equation|method|technique|step)\b', question, re.IGNORECASE))
+    
+    # Adjust weights: for technical questions, favor semantic understanding
+    if is_technical_question:
+        keyword_weight, semantic_weight = 0.3, 0.7
+    else:
+        keyword_weight, semantic_weight = 0.4, 0.6
+    
     ranked_chunks = []
     for i, chunk_id in enumerate(results["ids"][0]):
         semantic_score = 1.0 - results["distances"][0][i]  # Convert distance to similarity
         kw_score = keyword_scores.get(chunk_id, 0)
-        combined_score = 0.4 * kw_score + 0.6 * semantic_score
+        combined_score = keyword_weight * kw_score + semantic_weight * semantic_score
+        
+        # Find metadata for this chunk
+        chunk_metadata = results["metadatas"][0][i]
+        
+        # Boost score if chunk is from summary (more organized)
+        if "summary" in chunk_metadata.get("source_type", ""):
+            combined_score *= 1.15  # 15% boost for summary chunks
+        
+        # Boost score if chunk is marked as technical and question is technical
+        if is_technical_question and chunk_metadata.get("is_technical", False):
+            combined_score *= 1.1  # 10% boost for technical content
         
         ranked_chunks.append({
             "chunk_id": chunk_id,
             "score": combined_score,
             "text": results["documents"][0][i],
             "text_preview": results["documents"][0][i][:200] + "..." if len(results["documents"][0][i]) > 200 else results["documents"][0][i],
-            "start_time": results["metadatas"][0][i].get("start_time"),
-            "end_time": results["metadatas"][0][i].get("end_time")
+            "start_time": chunk_metadata.get("start_time"),
+            "end_time": chunk_metadata.get("end_time"),
+            "source_type": chunk_metadata.get("source_type", "unknown")
         })
     
     ranked_chunks.sort(key=lambda x: x["score"], reverse=True)
-    top_chunks = ranked_chunks[:3]
+    
+    # Use top 5 chunks (increased from 3) for more comprehensive answers
+    # Prioritize diversity: try to get both summary and transcript chunks
+    top_chunks = []
+    summary_count = 0
+    transcript_count = 0
+    
+    for chunk in ranked_chunks:
+        if len(top_chunks) >= 5:
+            break
+        source_type = chunk.get("source_type", "")
+        
+        # Balance between summary and transcript chunks
+        if "summary" in source_type:
+            if summary_count < 2:  # Max 2 summary chunks
+                top_chunks.append(chunk)
+                summary_count += 1
+        else:
+            if transcript_count < 4:  # Max 4 transcript chunks
+                top_chunks.append(chunk)
+                transcript_count += 1
+    
+    # If we don't have 5 chunks yet, add more regardless of type
+    if len(top_chunks) < 5:
+        for chunk in ranked_chunks:
+            if chunk not in top_chunks:
+                top_chunks.append(chunk)
+                if len(top_chunks) >= 5:
+                    break
     
     # Detect question language
     def is_burmese(text: str) -> bool:
@@ -260,15 +358,32 @@ def query_rag(question: str, top_k: int = 5, keyword_threshold: float = 0.2) -> 
         return answer, top_chunks, elapsed_ms, False
     
     # Generate answer with Gemini
-    context = "\n\n".join([f"Snippet {i+1}:\n{c['text']}" for i, c in enumerate(top_chunks)])
+    # Organize context: summary chunks first (if any), then transcript chunks
+    summary_chunks = [c for c in top_chunks if "summary" in c.get("source_type", "")]
+    transcript_chunks = [c for c in top_chunks if "summary" not in c.get("source_type", "")]
+    
+    context_parts = []
+    if summary_chunks:
+        context_parts.append("High-level overview (from organized summary):")
+        for i, c in enumerate(summary_chunks):
+            context_parts.append(f"Overview {i+1}:\n{c['text']}")
+    
+    if transcript_chunks:
+        if summary_chunks:
+            context_parts.append("\nDetailed information (from transcript):")
+        for i, c in enumerate(transcript_chunks):
+            context_parts.append(f"Detail {i+1}:\n{c['text']}")
+    
+    context = "\n\n".join(context_parts)
+    
     prompt = f"""{RAG_SYSTEM_PROMPT}
 
 Question: {question}
 
-Transcript snippets:
+Relevant content from transcript:
 {context}
 
-Answer:"""
+Answer (remember to be clear and structured, especially for equations and techniques):"""
     
     model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)

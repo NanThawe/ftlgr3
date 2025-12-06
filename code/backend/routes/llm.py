@@ -72,9 +72,14 @@ def translate_and_summarise(req: TranscriptRequest):
 
 @router.post("/rag/index")
 def index_transcript(req: RAGIndexRequest):
-    """Build RAG index for transcript."""
+    """Build RAG index for transcript with optional summary integration."""
     try:
-        result = build_rag_index(req.transcript_text, req.segments)
+        result = build_rag_index(
+            req.transcript_text, 
+            req.segments,
+            summary_en=req.summary_en,
+            summary_mm=req.summary_mm
+        )
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -93,7 +98,8 @@ def query_transcript(req: RAGQueryRequest):
                 score=c["score"],
                 text_preview=c["text_preview"],
                 start_time=c.get("start_time"),
-                end_time=c.get("end_time")
+                end_time=c.get("end_time"),
+                source_type=c.get("source_type")
             )
             for c in top_chunks
         ]

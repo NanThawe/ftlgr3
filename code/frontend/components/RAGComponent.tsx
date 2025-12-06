@@ -14,6 +14,7 @@ type ChunkInfo = {
   text_preview: string;
   start_time?: number;
   end_time?: number;
+  source_type?: string;
 };
 
 type RAGResponse = {
@@ -36,12 +37,39 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
     setIndexing(true);
     setError("");
     try {
+      // First, generate summaries (they provide more organized information)
+      console.log("Generating summaries for RAG indexing...");
+      let summaryEn = null;
+      let summaryMm = null;
+      
+      try {
+        const summaryRes = await fetch(`${API_BASE}/api/llm/summarize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript_text: transcriptText }),
+        });
+        
+        if (summaryRes.ok) {
+          const summaryData = await summaryRes.json();
+          summaryEn = summaryData.english_summary;
+          summaryMm = summaryData.burmese_summary;
+          console.log("Summaries generated successfully");
+        } else {
+          console.log("Couldn't generate summaries, indexing transcript only");
+        }
+      } catch (summaryError) {
+        console.log("Summary generation failed, continuing with transcript only");
+      }
+      
+      // Now index with both transcript and summaries
       const res = await fetch(`${API_BASE}/api/llm/rag/index`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           transcript_text: transcriptText,
-          segments: segments 
+          segments: segments,
+          summary_en: summaryEn,
+          summary_mm: summaryMm
         }),
       });
       if (!res.ok) {
@@ -84,6 +112,22 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
+  }
+
+  function formatMarkdown(text: string) {
+    // Simple markdown renderer for bold and basic formatting
+    return text
+      .split('\n')
+      .map((line, i) => {
+        // Convert **bold** to <strong>
+        const formatted = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
+      })
+      .reduce<React.ReactNode[]>((acc, curr, i) => {
+        if (i > 0) acc.push(<br key={`br-${i}`} />);
+        acc.push(curr);
+        return acc;
+      }, []);
   }
 
   return (
@@ -145,24 +189,36 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
                   )}
                 </div>
               </div>
-              <div className="text-sm whitespace-pre-line mb-4">{response.answer}</div>
+              <div className="text-sm mb-4" style={{ lineHeight: '1.6' }}>
+                {formatMarkdown(response.answer)}
+              </div>
 
               {showChunks && response.top_chunks.length > 0 && (
                 <div className="border-t pt-3 mt-3">
-                  <h4 className="font-semibold text-sm mb-2">Top 3 Source Chunks:</h4>
-                  {response.top_chunks.map((chunk, i) => (
-                    <div key={chunk.chunk_id} className="mb-2 p-2 bg-gray-50 rounded text-xs">
-                      <div className="flex justify-between mb-1">
-                        <span className="font-medium">Chunk {i + 1} (score: {chunk.score.toFixed(2)})</span>
-                        {(chunk.start_time != null || chunk.end_time != null) && (
-                          <span className="text-gray-500">
-                            {formatTime(chunk.start_time)} - {formatTime(chunk.end_time)}
-                          </span>
-                        )}
+                  <h4 className="font-semibold text-sm mb-2">Top {response.top_chunks.length} Source Chunks:</h4>
+                  {response.top_chunks.map((chunk, i) => {
+                    const isSummary = chunk.source_type?.includes("summary");
+                    return (
+                      <div key={chunk.chunk_id} className="mb-2 p-2 bg-gray-50 rounded text-xs">
+                        <div className="flex justify-between mb-1">
+                          <div className="flex gap-2 items-center">
+                            <span className="font-medium">Chunk {i + 1} (score: {chunk.score.toFixed(2)})</span>
+                            {isSummary && (
+                              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
+                                Summary
+                              </span>
+                            )}
+                          </div>
+                          {(chunk.start_time != null || chunk.end_time != null) && (
+                            <span className="text-gray-500">
+                              {formatTime(chunk.start_time)} - {formatTime(chunk.end_time)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-700">{chunk.text_preview}</div>
                       </div>
-                      <div className="text-gray-700">{chunk.text_preview}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

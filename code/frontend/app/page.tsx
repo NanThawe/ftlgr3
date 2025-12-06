@@ -2,7 +2,6 @@
 import { useState } from "react";
 import TranslationSummary from "@/components/TranslationSummary";
 import RAGComponent from "@/components/RAGComponent";
-import RAGInspector from "@/components/RAGInspector";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -133,7 +132,6 @@ export default function Home() {
             transcriptText={ytResult?.transcript_text || upResult?.transcript_text || ""}
             segments={ytResult?.segments || upResult?.segments}
           />
-          <RAGInspector />
         </>
       )}
     </main>
