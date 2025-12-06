@@ -42,3 +42,9 @@ Thumbs.db
 
 # Misc
 *.swp
+
+# RAG embedding files
+*.bin
+*.pkl
+*.index
+code/backend/rag_index/
