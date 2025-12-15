@@ -87,62 +87,35 @@ function WordTooltip({
   position: { x: number; y: number };
   onClose: () => void;
 }) {
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
-
-  useEffect(() => {
-    if (tooltipRef.current) {
-      const rect = tooltipRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      let newX = position.x;
-      let newY = position.y;
-
-      // Adjust horizontal position
-      if (rect.right > viewportWidth - 20) {
-        newX = position.x - (rect.right - viewportWidth) - 40;
-      }
-      if (rect.left < 20) {
-        newX = 20;
-      }
-
-      // Adjust vertical position
-      if (rect.bottom > viewportHeight - 20) {
-        newY = position.y - rect.height - 30;
-      }
-
-      setAdjustedPosition({ x: newX, y: newY });
-    }
-  }, [position]);
-
   if (!annotation) return null;
 
   const level = annotation.cefr_level;
   const bgColor = CEFR_COLORS[level] || "#gray";
 
   return (
-    <div
-      ref={tooltipRef}
-      className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-w-sm animate-fadeIn"
-      style={{
-        left: adjustedPosition.x,
-        top: adjustedPosition.y,
-        animation: "fadeIn 0.2s ease-out",
-      }}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
+      {/* Backdrop overlay */}
+      <div 
+        className="fixed inset-0 bg-black/50 z-[100] animate-fadeIn"
+        onClick={onClose}
+      />
+      
+      {/* Centered modal */}
+      <div
+        className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[101] bg-slate-800 rounded-xl shadow-2xl border border-slate-600 p-6 max-w-md w-full mx-4 animate-fadeInUp"
+        onClick={(e) => e.stopPropagation()}
+      >
       <button
         onClick={onClose}
-        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-xl leading-none"
+        className="absolute top-3 right-3 text-slate-400 hover:text-slate-200 text-2xl leading-none transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-700"
       >
         ×
       </button>
 
-      <div className="flex items-center gap-3 mb-3">
-        <span className="text-xl font-bold">{word}</span>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-xl font-bold text-white">{word}</span>
         {definition?.phonetic && (
-          <span className="text-gray-500 text-sm">{definition.phonetic}</span>
+          <span className="text-slate-400 text-sm">{definition.phonetic}</span>
         )}
         <span
           className="px-2 py-1 rounded text-xs font-bold"
@@ -156,8 +129,8 @@ function WordTooltip({
       </div>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-gray-500">
-          <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+        <div className="flex items-center gap-2 text-slate-400">
+          <div className="animate-spin w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full"></div>
           Loading definition...
         </div>
       ) : (
@@ -165,36 +138,45 @@ function WordTooltip({
           {definition?.found ? (
             <>
               {definition.part_of_speech && (
-                <div className="text-sm text-gray-600 italic mb-2">
+                <div className="text-sm text-slate-400 italic mb-2">
                   {definition.part_of_speech}
                 </div>
               )}
               {definition.definition && (
-                <div className="text-sm mb-2">
-                  <span className="font-semibold">Definition: </span>
+                <div className="text-sm mb-2 text-slate-300">
+                  <span className="font-semibold text-white">Definition: </span>
                   {definition.definition}
                 </div>
               )}
               {definition.example && (
-                <div className="text-sm text-gray-600 italic">
-                  <span className="font-semibold not-italic">Example: </span>
+                <div className="text-sm text-slate-400 italic">
+                  <span className="font-semibold not-italic text-white">Example: </span>
                   &quot;{definition.example}&quot;
                 </div>
               )}
             </>
           ) : (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-slate-500">
               Definition not available
             </div>
           )}
         </>
       )}
 
-      <div className="mt-3 pt-3 border-t text-xs text-gray-500">
+      <div className="mt-4 pt-4 border-t border-slate-700 text-xs text-slate-500">
         <div>Frequency: {annotation.frequency}x in text</div>
         <div>Confidence: {(annotation.confidence * 100).toFixed(1)}%</div>
       </div>
+      
+      {/* Close button at bottom */}
+      <button
+        onClick={onClose}
+        className="mt-4 w-full py-2 px-4 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors text-sm font-medium"
+      >
+        Close
+      </button>
     </div>
+    </>
   );
 }
 
@@ -205,34 +187,36 @@ function StatisticsDashboard({ statistics }: { statistics: CEFRStatistics }) {
   );
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="font-bold text-lg mb-4">📊 Vocabulary Statistics</h3>
+    <div className="card">
+      <h3 className="font-bold text-lg mb-4 text-white flex items-center gap-2">
+        <span className="text-xl">📊</span> Vocabulary Statistics
+      </h3>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-blue-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-blue-600">
+        <div className="rounded-xl bg-blue-500/10 border border-blue-500/30 p-3 text-center">
+          <div className="text-2xl font-bold text-blue-400">
             {statistics.total_words}
           </div>
-          <div className="text-xs text-gray-600">Total Words</div>
+          <div className="text-xs text-slate-400">Total Words</div>
         </div>
-        <div className="bg-green-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-green-600">
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-center">
+          <div className="text-2xl font-bold text-emerald-400">
             {statistics.unique_words}
           </div>
-          <div className="text-xs text-gray-600">Unique Words</div>
+          <div className="text-xs text-slate-400">Unique Words</div>
         </div>
-        <div className="bg-orange-50 rounded-lg p-3 text-center">
-          <div className="text-2xl font-bold text-orange-600">
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-center">
+          <div className="text-2xl font-bold text-amber-400">
             {statistics.average_difficulty.toFixed(1)}
           </div>
-          <div className="text-xs text-gray-600">Avg. Difficulty</div>
+          <div className="text-xs text-slate-400">Avg. Difficulty</div>
         </div>
         <div
-          className="rounded-lg p-3 text-center"
+          className="rounded-xl p-3 text-center border"
           style={{
-            backgroundColor:
-              CEFR_COLORS[statistics.approximate_level] + "40",
+            backgroundColor: CEFR_COLORS[statistics.approximate_level] + "20",
+            borderColor: CEFR_COLORS[statistics.approximate_level] + "50",
           }}
         >
           <div
@@ -241,19 +225,19 @@ function StatisticsDashboard({ statistics }: { statistics: CEFRStatistics }) {
           >
             {statistics.approximate_level}
           </div>
-          <div className="text-xs text-gray-600">Overall Level</div>
+          <div className="text-xs text-slate-400">Overall Level</div>
         </div>
       </div>
 
       {/* Interpretation */}
-      <div className="bg-gray-50 rounded p-3 mb-4 text-sm">
-        <span className="font-semibold">📝 Assessment: </span>
+      <div className="rounded-xl bg-slate-900/50 p-4 mb-4 text-sm text-slate-300">
+        <span className="font-semibold text-white">📝 Assessment: </span>
         {statistics.difficulty_interpretation}
       </div>
 
       {/* Bar Chart */}
       <div className="mb-4">
-        <h4 className="font-semibold mb-2 text-sm">Level Distribution</h4>
+        <h4 className="font-semibold mb-3 text-sm text-white">Level Distribution</h4>
         <div className="space-y-2">
           {statistics.level_distribution.map((level) => (
             <div key={level.level} className="flex items-center gap-2">
@@ -266,7 +250,7 @@ function StatisticsDashboard({ statistics }: { statistics: CEFRStatistics }) {
               >
                 {level.level}
               </span>
-              <div className="flex-1 h-6 bg-gray-100 rounded overflow-hidden">
+              <div className="flex-1 h-6 bg-slate-800 rounded overflow-hidden">
                 <div
                   className="h-full transition-all duration-500"
                   style={{
@@ -275,7 +259,7 @@ function StatisticsDashboard({ statistics }: { statistics: CEFRStatistics }) {
                   }}
                 ></div>
               </div>
-              <span className="text-xs text-gray-600 w-20 text-right">
+              <span className="text-xs text-slate-400 w-20 text-right">
                 {level.count} ({level.percentage.toFixed(1)}%)
               </span>
             </div>
@@ -321,7 +305,7 @@ function StatisticsDashboard({ statistics }: { statistics: CEFRStatistics }) {
                 className="w-3 h-3 rounded"
                 style={{ backgroundColor: CEFR_COLORS[level.level] }}
               ></div>
-              <span>
+              <span className="text-slate-400">
                 {level.level}: {level.percentage.toFixed(1)}%
               </span>
             </div>
@@ -347,19 +331,21 @@ function FilterPanel({
   const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
+    <div className="card">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold">🎯 Filter by Level</h3>
+        <h3 className="font-bold text-white flex items-center gap-2">
+          <span className="text-lg">🎯</span> Filter by Level
+        </h3>
         <div className="flex gap-2">
           <button
             onClick={onSelectAll}
-            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            className="text-xs px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
           >
             Select All
           </button>
           <button
             onClick={onDeselectAll}
-            className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            className="text-xs px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-400 hover:bg-slate-700 transition-colors"
           >
             Deselect All
           </button>
@@ -369,28 +355,28 @@ function FilterPanel({
         {levels.map((level) => (
           <label
             key={level}
-            className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded border transition-all"
+            className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border transition-all"
             style={{
               backgroundColor: selectedLevels.has(level)
-                ? CEFR_COLORS[level] + "40"
+                ? CEFR_COLORS[level] + "20"
                 : "transparent",
               borderColor: selectedLevels.has(level)
                 ? CEFR_COLORS[level]
-                : "#e5e7eb",
+                : "rgb(51 65 85 / 0.5)",
             }}
           >
             <input
               type="checkbox"
               checked={selectedLevels.has(level)}
               onChange={() => onToggleLevel(level)}
-              className="rounded"
+              className="rounded bg-slate-700 border-slate-600"
             />
             <span
               className="font-semibold text-sm"
               style={{
                 color: selectedLevels.has(level)
                   ? CEFR_COLORS[level]
-                  : "#6b7280",
+                  : "#94a3b8",
               }}
             >
               {level}
@@ -456,14 +442,19 @@ function AdvancedWordsPanel({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
+    <div className="card">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between"
       >
-        <h3 className="font-bold">📚 Advanced Vocabulary (B2-C2)</h3>
-        <span className="text-gray-500">
-          {advancedWords.length} words {isExpanded ? "▲" : "▼"}
+        <h3 className="font-bold text-white flex items-center gap-2">
+          <span className="text-lg">📚</span> Advanced Vocabulary (B2-C2)
+        </h3>
+        <span className="text-slate-400 flex items-center gap-2">
+          {advancedWords.length} words 
+          <svg className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </span>
       </button>
 
@@ -476,7 +467,7 @@ function AdvancedWordsPanel({
                 key={level}
                 className="px-2 py-1 rounded"
                 style={{
-                  backgroundColor: CEFR_COLORS[level] + "40",
+                  backgroundColor: CEFR_COLORS[level] + "20",
                   color: CEFR_COLORS[level],
                 }}
               >
@@ -487,12 +478,12 @@ function AdvancedWordsPanel({
 
           {/* Sort and Export */}
           <div className="flex justify-between mb-3">
-            <div className="flex gap-2">
-              <span className="text-sm text-gray-600">Sort by:</span>
+            <div className="flex gap-2 items-center">
+              <span className="text-sm text-slate-400">Sort by:</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="text-sm border rounded px-2 py-1"
+                className="select-modern text-sm py-1.5"
               >
                 <option value="frequency">Frequency</option>
                 <option value="alphabetical">Alphabetical</option>
@@ -501,9 +492,12 @@ function AdvancedWordsPanel({
             </div>
             <button
               onClick={handleExport}
-              className="text-sm px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+              className="text-sm px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors flex items-center gap-1"
             >
-              📥 Export CSV
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export CSV
             </button>
           </div>
 
@@ -514,21 +508,21 @@ function AdvancedWordsPanel({
                 <button
                   key={word.word}
                   onClick={(e) => onWordClick(word.word, e)}
-                  className="px-2 py-1 rounded text-sm cursor-pointer hover:opacity-80 transition-opacity"
+                  className="px-2 py-1 rounded-lg text-sm cursor-pointer hover:opacity-80 transition-opacity"
                   style={{
-                    backgroundColor: CEFR_COLORS[word.cefr_level] + "40",
+                    backgroundColor: CEFR_COLORS[word.cefr_level] + "20",
                     borderLeft: `3px solid ${CEFR_COLORS[word.cefr_level]}`,
                   }}
                 >
-                  {word.word}
-                  <span className="text-xs text-gray-500 ml-1">
+                  <span style={{ color: CEFR_COLORS[word.cefr_level] }}>{word.word}</span>
+                  <span className="text-xs text-slate-500 ml-1">
                     ({word.frequency}x)
                   </span>
                 </button>
               ))}
             </div>
             {sortedWords.length > 100 && (
-              <div className="text-center text-sm text-gray-500 mt-2">
+              <div className="text-center text-sm text-slate-500 mt-2">
                 ...and {sortedWords.length - 100} more words
               </div>
             )}
@@ -544,13 +538,11 @@ function AnnotatedTranscript({
   text,
   annotationMap,
   selectedLevels,
-  onWordHover,
   onWordClick,
 }: {
   text: string;
   annotationMap: Map<string, WordAnnotation>;
   selectedLevels: Set<string>;
-  onWordHover: (word: string | null, event: React.MouseEvent | null) => void;
   onWordClick: (word: string, event: React.MouseEvent) => void;
 }) {
   // Split text into words while preserving formatting
@@ -573,13 +565,11 @@ function AnnotatedTranscript({
               isHighlighted ? "hover:opacity-80" : "opacity-40"
             }`}
             style={{
-              backgroundColor: isHighlighted ? bgColor + "60" : "transparent",
+              backgroundColor: isHighlighted ? bgColor + "40" : "transparent",
               borderBottom: isHighlighted
                 ? `2px solid ${bgColor}`
                 : "none",
             }}
-            onMouseEnter={(e) => onWordHover(wordLower, e)}
-            onMouseLeave={() => onWordHover(null, null)}
             onClick={(e) => onWordClick(wordLower, e)}
           >
             {part}
@@ -593,20 +583,23 @@ function AnnotatedTranscript({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4">
-      <h3 className="font-bold mb-3">📖 Annotated Transcript</h3>
-      <div className="border rounded p-4 bg-gray-50 max-h-96 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap">
+    <div className="card">
+      <h3 className="font-bold mb-3 text-white flex items-center gap-2">
+        <span className="text-lg">📖</span> Annotated Transcript
+      </h3>
+      <div className="rounded-xl p-4 bg-slate-900/50 max-h-96 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap text-slate-300">
         {renderAnnotatedText()}
       </div>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <span className="text-gray-500">Legend:</span>
+        <span className="text-slate-500">Legend:</span>
         {["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => (
           <span
             key={level}
             className="px-2 py-0.5 rounded"
             style={{
-              backgroundColor: CEFR_COLORS[level] + "60",
+              backgroundColor: CEFR_COLORS[level] + "40",
               borderBottom: `2px solid ${CEFR_COLORS[level]}`,
+              color: CEFR_COLORS[level],
             }}
           >
             {level}
@@ -624,12 +617,11 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
   const [analysisResult, setAnalysisResult] = useState<CEFRAnalyzeResponse | null>(null);
   const [annotationMap, setAnnotationMap] = useState<Map<string, WordAnnotation>>(new Map());
   const [selectedLevels, setSelectedLevels] = useState<Set<string>>(
-    new Set(["A1", "A2", "B1", "B2", "C1", "C2"])
+    new Set(["B2", "C1", "C2"])
   );
   const [showAnnotated, setShowAnnotated] = useState(true);
   
   // Tooltip state
-  const [hoveredWord, setHoveredWord] = useState<string | null>(null);
   const [clickedWord, setClickedWord] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [wordDefinition, setWordDefinition] = useState<WordDefinition | null>(null);
@@ -698,39 +690,26 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
     }
   }, []);
 
-  // Handle word hover
-  const handleWordHover = useCallback(
-    (word: string | null, event: React.MouseEvent | null) => {
-      if (clickedWord) return; // Don't show hover tooltip if clicked
 
-      if (word && event) {
-        setHoveredWord(word);
-        setTooltipPosition({
-          x: event.clientX + 10,
-          y: event.clientY + 10,
-        });
-        fetchDefinition(word);
-      } else {
-        setHoveredWord(null);
-        setWordDefinition(null);
-      }
-    },
-    [clickedWord, fetchDefinition]
-  );
 
   // Handle word click
   const handleWordClick = useCallback(
     (word: string, event: React.MouseEvent) => {
       event.stopPropagation();
-      setClickedWord(word);
-      setHoveredWord(null);
-      setTooltipPosition({
-        x: event.clientX + 10,
-        y: event.clientY + 10,
-      });
-      fetchDefinition(word);
+      // Toggle: if clicking the same word, close it; otherwise open new tooltip
+      if (clickedWord === word) {
+        setClickedWord(null);
+        setWordDefinition(null);
+      } else {
+        setClickedWord(word);
+        setTooltipPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+        fetchDefinition(word);
+      }
     },
-    [fetchDefinition]
+    [clickedWord, fetchDefinition]
   );
 
   // Close tooltip on outside click
@@ -768,58 +747,92 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
   };
 
   // Active word for tooltip
-  const activeWord = clickedWord || hoveredWord;
+  const activeWord = clickedWord;
   const activeAnnotation = activeWord ? annotationMap.get(activeWord) : undefined;
 
   return (
-    <div className="mt-8 border-t pt-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">🎓 CEFR Vocabulary Analysis</h2>
-        {analysisResult && (
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={showAnnotated}
-              onChange={(e) => setShowAnnotated(e.target.checked)}
-              className="rounded"
-            />
-            Show annotations
-          </label>
-        )}
+    <div>
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="section-title">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-lg">📊</span>
+              CEFR Vocabulary Analysis
+            </h2>
+            <p className="section-subtitle">
+              Analyze the difficulty level of vocabulary in the transcript
+            </p>
+          </div>
+          {analysisResult && (
+            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showAnnotated}
+                onChange={(e) => setShowAnnotated(e.target.checked)}
+                className="rounded bg-slate-700 border-slate-600 text-purple-500 focus:ring-purple-500"
+              />
+              Show annotations
+            </label>
+          )}
+        </div>
       </div>
 
       {/* Analyze Button */}
       {!analysisResult && (
-        <button
-          onClick={handleAnalyze}
-          disabled={analyzing || !transcriptText.trim()}
-          className="w-full py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-400 transition-colors"
-        >
-          {analyzing ? (
-            <span className="flex items-center justify-center gap-2">
-              <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
-              Analyzing vocabulary...
-            </span>
-          ) : (
-            "🔍 Analyze Vocabulary Difficulty"
-          )}
-        </button>
+        <div className="card">
+          <div className="flex flex-col items-center text-center py-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Analyze Vocabulary Difficulty</h3>
+            <p className="text-sm text-slate-400 mb-6 max-w-md">
+              This will analyze every word in the transcript and classify them by CEFR level (A1-C2).
+            </p>
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing || !transcriptText.trim()}
+              className="btn-primary flex items-center gap-2"
+            >
+              {analyzing ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Analyzing vocabulary...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Analyze Vocabulary Difficulty
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Error */}
       {error && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm animate-fadeIn">
           <strong>Error:</strong> {error}
         </div>
       )}
 
       {/* Results */}
       {analysisResult && (
-        <div className="mt-4">
+        <div className="space-y-4 animate-fadeInUp">
           {/* Performance info */}
-          <div className="text-xs text-gray-500 text-right mb-2">
+          <div className="text-xs text-slate-500 text-right">
             Analyzed in {(analysisResult.elapsed_ms / 1000).toFixed(2)}s
-            {analysisResult.from_cache && " (cached)"}
+            {analysisResult.from_cache && (
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">cached</span>
+            )}
           </div>
 
           {/* Statistics Dashboard */}
@@ -839,7 +852,6 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
               text={transcriptText}
               annotationMap={annotationMap}
               selectedLevels={selectedLevels}
-              onWordHover={handleWordHover}
               onWordClick={handleWordClick}
             />
           )}
@@ -854,9 +866,12 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
           <button
             onClick={handleAnalyze}
             disabled={analyzing}
-            className="w-full py-2 mt-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 disabled:bg-gray-300 transition-colors"
+            className="btn-secondary w-full flex items-center justify-center gap-2"
           >
-            🔄 Re-analyze
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Re-analyze
           </button>
         </div>
       )}
@@ -871,28 +886,10 @@ export default function CEFRComponent({ transcriptText }: CEFRComponentProps) {
           position={tooltipPosition}
           onClose={() => {
             setClickedWord(null);
-            setHoveredWord(null);
             setWordDefinition(null);
           }}
         />
       )}
-
-      {/* CSS for animation */}
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-5px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-      `}</style>
     </div>
   );
 }

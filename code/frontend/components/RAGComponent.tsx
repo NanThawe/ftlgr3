@@ -32,6 +32,7 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
   const [error, setError] = useState("");
   const [response, setResponse] = useState<RAGResponse | null>(null);
   const [showChunks, setShowChunks] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   async function handleIndex() {
     setIndexing(true);
@@ -125,7 +126,7 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
       .split('\n')
       .map((line, i) => {
         // Convert **bold** to <strong>
-        const formatted = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        const formatted = line.replace(/\*\*(.+?)\*\*/g, '<strong class="text-purple-400">$1</strong>');
         return <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />;
       })
       .reduce<React.ReactNode[]>((acc, curr, i) => {
@@ -136,94 +137,213 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
   }
 
   return (
-    <div className="mt-8 border-t pt-6">
-      <h2 className="text-2xl font-bold mb-4">Ask Questions (RAG)</h2>
+    <div>
+      {/* Header */}
+      <div className="mb-8">
+        <h2 className="section-title">
+          <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-lg">💬</span>
+          Ask Questions (RAG)
+        </h2>
+        <p className="section-subtitle">
+          Query the transcript using AI-powered retrieval augmented generation
+        </p>
+      </div>
+
+      {/* Collapsible Transcript Reference */}
+      <div className="card mb-6">
+        <button
+          onClick={() => setShowTranscript(!showTranscript)}
+          className="w-full flex items-center justify-between"
+        >
+          <h3 className="font-bold text-white flex items-center gap-2">
+            <span className="text-lg">📄</span> Transcript Reference
+          </h3>
+          <span className="text-slate-400 flex items-center gap-2">
+            {showTranscript ? "Hide" : "Show"}
+            <svg className={`w-4 h-4 transition-transform ${showTranscript ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </span>
+        </button>
+        
+        {showTranscript && (
+          <div className="mt-4 animate-fadeIn">
+            <div className="p-4 rounded-xl bg-slate-900/50 max-h-60 overflow-y-auto text-sm text-slate-300 whitespace-pre-line">
+              {transcriptText}
+            </div>
+            {segments && segments.length > 0 && segments.some(seg => seg.start !== null || seg.end !== null) && (
+              <div className="mt-3">
+                <h4 className="text-sm font-medium text-slate-400 mb-2">Segments with Timestamps</h4>
+                <ul className="space-y-1 max-h-40 overflow-y-auto text-xs">
+                  {segments.map((seg, i) => (
+                    <li key={i} className="flex gap-3 p-2 rounded-lg hover:bg-slate-700/30 transition-colors">
+                      <span className="text-purple-400 font-mono whitespace-nowrap">
+                        {formatTime(seg.start)} - {formatTime(seg.end)}
+                      </span>
+                      <span className="text-slate-400">{seg.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       
       {!indexed && (
-        <div className="mb-4">
-          <button
-            onClick={handleIndex}
-            disabled={indexing || !transcriptText}
-            className="px-4 py-2 bg-purple-600 text-white rounded font-semibold disabled:bg-gray-400"
-          >
-            {indexing ? "Indexing transcript..." : "Index Transcript for Q&A"}
-          </button>
-          <p className="text-sm text-gray-600 mt-2">Index the transcript first to enable question answering.</p>
+        <div className="card mb-6">
+          <div className="flex flex-col items-center text-center py-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center mb-4">
+              <svg className="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Index Your Transcript</h3>
+            <p className="text-sm text-slate-400 mb-6 max-w-md">
+              Before you can ask questions, the transcript needs to be indexed. This creates a searchable knowledge base from your content.
+            </p>
+            <button
+              onClick={handleIndex}
+              disabled={indexing || !transcriptText}
+              className="btn-primary flex items-center gap-2"
+            >
+              {indexing ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Indexing transcript...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Index Transcript for Q&A
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
       {indexed && (
-        <div>
-          <div className="mb-4">
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleQuery()}
-              placeholder="Ask a question about the transcript..."
-              className="w-full border px-3 py-2 rounded mb-2"
-            />
-            <button
-              onClick={handleQuery}
-              disabled={querying || !question.trim()}
-              className="px-4 py-2 bg-purple-600 text-white rounded font-semibold disabled:bg-gray-400"
-            >
-              {querying ? "Thinking..." : "Ask"}
-            </button>
+        <div className="space-y-6">
+          {/* Success message */}
+          <div className="card bg-emerald-500/10 border-emerald-500/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-medium text-emerald-400">Transcript Indexed Successfully</h4>
+                <p className="text-sm text-slate-400">You can now ask questions about the content</p>
+              </div>
+            </div>
           </div>
 
-          {error && <div className="text-red-600 mb-4">{error}</div>}
+          {/* Question input */}
+          <div className="card">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleQuery()}
+                placeholder="Ask a question about the transcript..."
+                className="input-modern flex-1"
+              />
+              <button
+                onClick={handleQuery}
+                disabled={querying || !question.trim()}
+                className="btn-primary px-6 flex items-center gap-2"
+              >
+                {querying ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                )}
+                Ask
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm animate-fadeIn">
+              {error}
+            </div>
+          )}
 
           {response && (
-            <div className="border rounded p-4 bg-white shadow">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="font-semibold">Answer</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">
-                    Took {(response.elapsed_ms / 1000).toFixed(2)}s
-                    {response.from_cache && " (cached)"}
+            <div className="card animate-fadeInUp">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="font-semibold text-white flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                  Answer
+                </h3>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500">
+                    {(response.elapsed_ms / 1000).toFixed(2)}s
+                    {response.from_cache && (
+                      <span className="ml-2 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">cached</span>
+                    )}
                   </span>
                   {response.top_chunks.length > 0 && (
                     <button
                       onClick={() => setShowChunks(!showChunks)}
-                      className="text-blue-600 hover:text-blue-800 text-xs"
-                      title="Show source chunks"
+                      className="px-3 py-1 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-xs transition-colors flex items-center gap-1"
                     >
-                      ℹ️
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Sources
                     </button>
                   )}
                 </div>
               </div>
-              <div className="text-sm mb-4" style={{ lineHeight: '1.6' }}>
+              <div className="p-4 rounded-xl bg-slate-900/50 text-sm text-slate-300" style={{ lineHeight: '1.8' }}>
                 {formatMarkdown(response.answer)}
               </div>
 
               {showChunks && response.top_chunks.length > 0 && (
-                <div className="border-t pt-3 mt-3">
-                  <h4 className="font-semibold text-sm mb-2">Top {response.top_chunks.length} Source Chunks:</h4>
-                  {response.top_chunks.map((chunk, i) => {
-                    const isSummary = chunk.source_type?.includes("summary");
-                    return (
-                      <div key={chunk.chunk_id} className="mb-2 p-2 bg-gray-50 rounded text-xs">
-                        <div className="flex justify-between mb-1">
-                          <div className="flex gap-2 items-center">
-                            <span className="font-medium">Chunk {i + 1} (score: {chunk.score.toFixed(2)})</span>
-                            {isSummary && (
-                              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">
-                                Summary
+                <div className="mt-4 pt-4 border-t border-slate-700/50">
+                  <h4 className="font-medium text-sm mb-3 text-slate-300">Top {response.top_chunks.length} Source Chunks:</h4>
+                  <div className="space-y-2">
+                    {response.top_chunks.map((chunk, i) => {
+                      const isSummary = chunk.source_type?.includes("summary");
+                      return (
+                        <div key={chunk.chunk_id} className="p-3 rounded-xl bg-slate-900/50 text-xs">
+                          <div className="flex justify-between mb-2">
+                            <div className="flex gap-2 items-center">
+                              <span className="font-medium text-slate-300">Chunk {i + 1}</span>
+                              <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                                score: {chunk.score.toFixed(2)}
+                              </span>
+                              {isSummary && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                                  Summary
+                                </span>
+                              )}
+                            </div>
+                            {(chunk.start_time != null || chunk.end_time != null) && (
+                              <span className="text-slate-500 font-mono">
+                                {formatTime(chunk.start_time)} - {formatTime(chunk.end_time)}
                               </span>
                             )}
                           </div>
-                          {(chunk.start_time != null || chunk.end_time != null) && (
-                            <span className="text-gray-500">
-                              {formatTime(chunk.start_time)} - {formatTime(chunk.end_time)}
-                            </span>
-                          )}
+                          <div className="text-slate-400">{chunk.text_preview}</div>
                         </div>
-                        <div className="text-gray-700">{chunk.text_preview}</div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
