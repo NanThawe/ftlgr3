@@ -45,6 +45,8 @@ Thumbs.db
 
 # RAG embedding files
 *.bin
-*.pkl
 *.index
 code/backend/rag_index/
+
+# Keep CEFR model (exception to *.pkl rule above)
+!code/backend/cefr_classifier_sgd.pkl

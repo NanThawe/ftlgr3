@@ -13,3 +13,5 @@ webvtt-py
 google-generativeai
 chromadb
 sentence-transformers
+scikit-learn
+httpx

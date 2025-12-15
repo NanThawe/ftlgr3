@@ -7,6 +7,7 @@ services:
       - "8000:8000"
     volumes:
       - ./code/backend:/app
+      - ./cefr_classifier_sgd.pkl:/app/cefr_classifier_sgd.pkl:ro
     environment:
       - PYTHONUNBUFFERED=1
       - GEMINI_API_KEY=${GEMINI_API_KEY}

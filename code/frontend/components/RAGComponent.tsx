@@ -61,13 +61,18 @@ export default function RAGComponent({ transcriptText, segments }: RAGProps) {
         console.log("Summary generation failed, continuing with transcript only");
       }
       
+      // Only send segments if they have valid timestamps (YouTube, SRT, VTT)
+      // PDF/TXT files don't have timestamps, so we skip sending segments for them
+      const hasValidTimestamps = segments && segments.length > 0 && 
+        segments.some(seg => seg.start !== null || seg.end !== null);
+      
       // Now index with both transcript and summaries
       const res = await fetch(`${API_BASE}/api/llm/rag/index`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           transcript_text: transcriptText,
-          segments: segments,
+          segments: hasValidTimestamps ? segments : undefined,
           summary_en: summaryEn,
           summary_mm: summaryMm
         }),

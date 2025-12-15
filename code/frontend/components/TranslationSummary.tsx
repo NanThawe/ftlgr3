@@ -77,14 +77,6 @@ export default function TranslationSummary({ transcriptText }: TranslationSummar
   return (
     <div className="mt-8 border-t pt-6">
       <h2 className="text-2xl font-bold mb-4">Translation & Summary</h2>
-      
-      {/* Current Transcript */}
-      <div className="mb-4">
-        <h3 className="font-semibold mb-2">Current English Transcript</h3>
-        <div className="border rounded p-3 bg-gray-50 max-h-40 overflow-y-auto text-sm whitespace-pre-line">
-          {transcriptText || "(No transcript available)"}
-        </div>
-      </div>
 
       {/* Action Buttons */}
       <div className="flex gap-3 mb-6">

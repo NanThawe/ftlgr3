@@ -1,7 +1,8 @@
-"use client";
+  "use client";
 import { useState } from "react";
 import TranslationSummary from "@/components/TranslationSummary";
 import RAGComponent from "@/components/RAGComponent";
+import CEFRComponent from "@/components/CEFRComponent";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -112,12 +113,17 @@ export default function Home() {
               <div className="mt-6">
                 <div className="font-bold mb-2">Transcript</div>
                 <div className="border rounded p-3 max-h-40 overflow-y-auto whitespace-pre-line text-sm bg-gray-50 mb-4">{upResult.transcript_text}</div>
-                <div className="font-bold mb-2">Segments</div>
-                <ul className="text-xs max-h-40 overflow-y-auto">
-                  {upResult.segments.map((seg,i)=>(
-                    <li key={i} className="mb-1"><span className="text-gray-500">{formatTime(seg.start)} - {formatTime(seg.end)}</span> {seg.text}</li>
-                  ))}
-                </ul>
+                {/* Only show segments if they have valid timestamps (SRT/VTT files) */}
+                {upResult.segments.some(seg => seg.start !== null || seg.end !== null) && (
+                  <>
+                    <div className="font-bold mb-2">Segments</div>
+                    <ul className="text-xs max-h-40 overflow-y-auto">
+                      {upResult.segments.map((seg,i)=>(
+                        <li key={i} className="mb-1"><span className="text-gray-500">{formatTime(seg.start)} - {formatTime(seg.end)}</span> {seg.text}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -128,6 +134,7 @@ export default function Home() {
       {(ytResult || upResult) && (
         <>
           <TranslationSummary transcriptText={ytResult?.transcript_text || upResult?.transcript_text || ""} />
+          <CEFRComponent transcriptText={ytResult?.transcript_text || upResult?.transcript_text || ""} />
           <RAGComponent 
             transcriptText={ytResult?.transcript_text || upResult?.transcript_text || ""}
             segments={ytResult?.segments || upResult?.segments}
