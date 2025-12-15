@@ -135,11 +135,19 @@ def build_rag_index(transcript_text: str, segments: Optional[List[dict]] = None,
         print(f"Summary provided: {bool(summary_en)}")
         
         # Determine chunking strategy
-        # If only 1 segment, use text-based chunking for better granularity
-        if segments and len(segments) > 1:
+        # Only use segment-based chunking if we have multiple segments WITH valid timestamps
+        # PDF/TXT files won't have timestamps, so we skip segment-based chunking for them
+        has_valid_timestamps = segments and len(segments) > 1 and any(
+            seg.get("start") is not None or seg.get("end") is not None 
+            for seg in segments
+        )
+        
+        if has_valid_timestamps:
             chunks = chunk_transcript_by_segments(segments)
+            print(f"Using segment-based chunking ({len(chunks)} chunks)")
         else:
             chunks = chunk_transcript_by_text(transcript_text)
+            print(f"Using text-based chunking ({len(chunks)} chunks)")
         
         # Add summary chunks if provided - these are more organized and provide better high-level answers
         if summary_en:
