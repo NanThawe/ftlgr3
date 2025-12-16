@@ -16,10 +16,17 @@ app.include_router(llm_router)
 # Include CEFR routes
 app.include_router(cefr_router)
 
-# CORS
+# CORS - Support multiple origins from environment variable (comma-separated)
+# e.g., FRONTEND_ORIGIN="https://ftlgr3.vercel.app,http://localhost:3000"
+frontend_origins = os.getenv("FRONTEND_ORIGIN", "*")
+if frontend_origins == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in frontend_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_ORIGIN", "*")],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
