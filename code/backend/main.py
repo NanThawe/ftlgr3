@@ -1,6 +1,7 @@
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Literal
 import os, tempfile, shutil
@@ -9,6 +10,14 @@ from routes.llm import router as llm_router
 from routes.cefr import router as cefr_router
 
 app = FastAPI()
+
+# Global exception handler to ensure CORS headers on errors
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"},
+    )
 
 # Include LLM routes
 app.include_router(llm_router)
@@ -31,6 +40,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Lecture Companion API"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
 class TranscriptSegment(BaseModel):
     start: Optional[float]
