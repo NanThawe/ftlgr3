@@ -7,6 +7,26 @@ from faster_whisper import WhisperModel
 from PyPDF2 import PdfReader
 from typing import List, Optional
 import srt, webvtt
+import gc
+
+# Global Whisper model cache to prevent repeated loading
+_whisper_models = {}
+
+def get_whisper_model(model_size: str):
+    """Load and cache Whisper model to avoid repeated downloads."""
+    global _whisper_models
+    
+    if model_size not in _whisper_models:
+        print(f"Loading Whisper model: {model_size}...")
+        _whisper_models[model_size] = WhisperModel(
+            model_size, 
+            device="cpu", 
+            compute_type="int8",
+            download_root=os.getenv("WHISPER_MODEL_PATH", None)
+        )
+        print(f"✓ Whisper {model_size} model loaded and cached")
+    
+    return _whisper_models[model_size]
 
 # --- YouTube transcript/caption extraction ---
 def extract_youtube_id(url: str) -> Optional[str]:
@@ -47,8 +67,17 @@ def download_youtube_audio(youtube_url: str, out_path: str):
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': out_path,
-        'quiet': True,
+        'quiet': False,  # Enable logging to debug issues
         'noplaylist': True,
+        'nocheckcertificate': True,
+        'no_warnings': False,
+        'extract_flat': False,
+        # Add cookies support to avoid bot detection
+        'cookiesfrombrowser': ('chrome',) if os.path.exists(os.path.expanduser('~/Library/Application Support/Google/Chrome')) else None,
+        # Reduce memory usage
+        'socket_timeout': 30,
+        'retries': 3,
+        'fragment_retries': 3,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([youtube_url])
@@ -62,14 +91,25 @@ def convert_audio_to_wav(src_path: str, dst_path: str):
     )
 
 def transcribe_with_whisper(audio_path: str, model_size: str):
-    model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(audio_path, language="en")
-    segs = []
-    texts = []
-    for seg in segments:
-        segs.append({"start": seg.start, "end": seg.end, "text": seg.text})
-        texts.append(seg.text)
-    return {"source": "asr", "transcript_text": " ".join(texts), "segments": segs}
+    """Transcribe audio using cached Whisper model."""
+    try:
+        model = get_whisper_model(model_size)
+        segments, _ = model.transcribe(audio_path, language="en")
+        segs = []
+        texts = []
+        for seg in segments:
+            segs.append({"start": seg.start, "end": seg.end, "text": seg.text})
+            texts.append(seg.text)
+        
+        result = {"source": "asr", "transcript_text": " ".join(texts), "segments": segs}
+        
+        # Force garbage collection after transcription
+        gc.collect()
+        
+        return result
+    except Exception as e:
+        print(f"Transcription error: {e}")
+        raise
 
 # --- File upload handling ---
 def parse_pdf(file_path: str):

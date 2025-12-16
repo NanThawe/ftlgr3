@@ -66,6 +66,7 @@ class TranscriptResponse(BaseModel):
 
 @app.post("/api/transcribe/youtube", response_model=TranscriptResponse)
 def transcribe_youtube(req: YouTubeTranscriptRequest):
+    import gc
     # 1. Try YouTube captions
     captions = get_youtube_captions(req.youtube_url)
     if captions:
@@ -87,8 +88,13 @@ def transcribe_youtube(req: YouTubeTranscriptRequest):
             wav_path = os.path.join(tmpdir, "audio.wav")
             convert_audio_to_wav(found, wav_path)
             result = transcribe_with_whisper(wav_path, req.model_size)
+            
+            # Force cleanup
+            gc.collect()
+            
             return result
         except Exception as e:
+            gc.collect()
             raise HTTPException(status_code=500, detail=f"ASR error: {str(e)}")
 
 @app.post("/api/transcribe/upload", response_model=TranscriptResponse)

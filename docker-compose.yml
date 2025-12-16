@@ -11,6 +11,15 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+    # Memory limits to prevent OOM crashes
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    # Restart policy
+    restart: unless-stopped
   frontend:
     build: ./code/frontend
     container_name: lecture1-frontend
@@ -22,3 +31,11 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
     depends_on:
       - backend
+    # Memory limits for frontend
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    restart: unless-stopped
