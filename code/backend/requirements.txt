@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 pydantic
-youtube-transcript-api>=0.6.0
+youtube-transcript-api>=1.0.0
 google-api-python-client
 yt-dlp
 ffmpeg-python

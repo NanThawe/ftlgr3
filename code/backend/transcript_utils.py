@@ -74,10 +74,13 @@ def get_youtube_captions_with_api(video_id: str, api_key: str):
         
         # Use youtube-transcript-api to actually download the transcript
         # (YouTube API v3 requires OAuth for caption download)
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
+        ytt_api = YouTubeTranscriptApi()
+        transcript = ytt_api.fetch(video_id, languages=["en"])
+        # New API returns FetchedTranscript object, use to_raw_data() for dict format
+        raw_data = transcript.to_raw_data()
         segments = [
             {"start": seg["start"], "end": seg["start"] + seg["duration"], "text": seg["text"]}
-            for seg in transcript
+            for seg in raw_data
         ]
         text = " ".join(seg["text"] for seg in segments)
         
@@ -122,10 +125,13 @@ def get_youtube_captions(youtube_url: str):
     # Strategy 2: Fallback to youtube-transcript-api (direct scraping)
     try:
         print(f"[Captions] Attempting youtube-transcript-api for video {video_id}")
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
+        ytt_api = YouTubeTranscriptApi()
+        transcript = ytt_api.fetch(video_id, languages=["en"])
+        # New API returns FetchedTranscript object, use to_raw_data() for dict format
+        raw_data = transcript.to_raw_data()
         segments = [
             {"start": seg["start"], "end": seg["start"] + seg["duration"], "text": seg["text"]}
-            for seg in transcript
+            for seg in raw_data
         ]
         text = " ".join(seg["text"] for seg in segments)
         return {
