@@ -1,7 +1,9 @@
 import os
 import tempfile
+import time
 import yt_dlp
 import ffmpeg
+import httpx
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -98,22 +100,124 @@ def get_youtube_captions_with_api(video_id: str, api_key: str):
         print(f"[YouTube API] Error fetching captions: {str(e)}")
         return None
 
+def get_youtube_captions_with_supadata(youtube_url: str, api_key: str):
+    """
+    Fetch YouTube captions using Supadata.ai API.
+    This works reliably from cloud environments (no IP blocking issues).
+    """
+    try:
+        print(f"[Supadata] Fetching transcript for: {youtube_url}")
+        
+        # Make request to Supadata API
+        response = httpx.get(
+            "https://api.supadata.ai/v1/transcript",
+            params={
+                "url": youtube_url,
+                "lang": "en",
+                "text": "false",  # Get timestamped chunks
+                "mode": "auto"  # Try native first, fallback to AI generation
+            },
+            headers={
+                "x-api-key": api_key
+            },
+            timeout=60.0
+        )
+        
+        # Handle async job response (HTTP 202)
+        if response.status_code == 202:
+            job_data = response.json()
+            job_id = job_data.get("jobId")
+            print(f"[Supadata] Got async job ID: {job_id}, polling for results...")
+            
+            # Poll for results (max 2 minutes)
+            for _ in range(24):  # 24 * 5s = 120s
+                time.sleep(5)
+                job_response = httpx.get(
+                    f"https://api.supadata.ai/v1/transcript/{job_id}",
+                    headers={"x-api-key": api_key},
+                    timeout=30.0
+                )
+                job_result = job_response.json()
+                status = job_result.get("status")
+                
+                if status == "completed":
+                    print(f"[Supadata] Job completed successfully")
+                    return _parse_supadata_response(job_result)
+                elif status == "failed":
+                    print(f"[Supadata] Job failed: {job_result.get('error')}")
+                    return None
+                else:
+                    print(f"[Supadata] Job status: {status}")
+            
+            print("[Supadata] Job timed out after 2 minutes")
+            return None
+        
+        # Handle immediate response (HTTP 200)
+        if response.status_code == 200:
+            print("[Supadata] ✓ Got transcript successfully")
+            return _parse_supadata_response(response.json())
+        
+        # Handle errors
+        print(f"[Supadata] API error: {response.status_code} - {response.text}")
+        return None
+        
+    except Exception as e:
+        print(f"[Supadata] Error: {str(e)}")
+        return None
+
+def _parse_supadata_response(data: dict):
+    """
+    Parse Supadata API response into our standard format.
+    """
+    content = data.get("content")
+    
+    # Handle timestamped chunks (when text=false)
+    if isinstance(content, list):
+        segments = [
+            {
+                "start": chunk.get("offset", 0) / 1000,  # Convert ms to seconds
+                "end": (chunk.get("offset", 0) + chunk.get("duration", 0)) / 1000,
+                "text": chunk.get("text", "")
+            }
+            for chunk in content
+        ]
+        text = " ".join(chunk.get("text", "") for chunk in content)
+    else:
+        # Handle plain text response (when text=true)
+        text = content or ""
+        segments = [{"start": 0, "end": 0, "text": text}]
+    
+    return {
+        "source": "supadata",
+        "transcript_text": text,
+        "segments": segments
+    }
+
 def get_youtube_captions(youtube_url: str):
     """
     Fetch YouTube captions with multiple fallback strategies:
-    1. YouTube Data API v3 (most reliable, checks if captions exist)
-    2. youtube-transcript-api (direct caption fetch)
-    3. Return None to trigger audio download + ASR fallback
+    1. Supadata.ai API (most reliable for cloud deployments)
+    2. YouTube Data API v3 (checks if captions exist)
+    3. youtube-transcript-api (direct caption fetch - may be blocked on cloud)
+    4. Return None to trigger audio download + ASR fallback
     """
     video_id = extract_youtube_id(youtube_url)
     if not video_id:
         print("[Captions] Invalid YouTube URL")
         return None
     
-    # Get API key from environment
-    youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+    # Strategy 1: Try Supadata.ai API first (works best on cloud deployments)
+    supadata_api_key = os.getenv("SUPADATA_API_KEY")
+    if supadata_api_key:
+        print(f"[Captions] Attempting Supadata API for video {video_id}")
+        result = get_youtube_captions_with_supadata(youtube_url, supadata_api_key)
+        if result:
+            return result
+    else:
+        print("[Captions] No SUPADATA_API_KEY found in environment")
     
-    # Strategy 1: Try YouTube Data API v3 first (if API key is available)
+    # Strategy 2: Try YouTube Data API v3 (if API key is available)
+    youtube_api_key = os.getenv("YOUTUBE_API_KEY")
     if youtube_api_key:
         print(f"[Captions] Attempting YouTube API for video {video_id}")
         result = get_youtube_captions_with_api(video_id, youtube_api_key)
@@ -122,7 +226,7 @@ def get_youtube_captions(youtube_url: str):
     else:
         print("[Captions] No YOUTUBE_API_KEY found in environment")
     
-    # Strategy 2: Fallback to youtube-transcript-api (direct scraping)
+    # Strategy 3: Fallback to youtube-transcript-api (direct scraping - may be blocked)
     try:
         print(f"[Captions] Attempting youtube-transcript-api for video {video_id}")
         ytt_api = YouTubeTranscriptApi()
