@@ -3,6 +3,8 @@ import tempfile
 import yt_dlp
 import ffmpeg
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from faster_whisper import WhisperModel
 from PyPDF2 import PdfReader
 from typing import List, Optional
@@ -34,32 +36,108 @@ def extract_youtube_id(url: str) -> Optional[str]:
     match = re.search(r"(?:v=|youtu.be/)([\w-]{11})", url)
     return match.group(1) if match else None
 
-def get_youtube_captions(youtube_url: str):
-    video_id = extract_youtube_id(youtube_url)
-    if not video_id:
-        return None
+def get_youtube_captions_with_api(video_id: str, api_key: str):
+    """
+    Fetch captions using YouTube Data API v3.
+    This is more reliable than scraping methods.
+    """
     try:
+        # Build YouTube API client
+        youtube = build('youtube', 'v3', developerKey=api_key)
+        
+        # Get caption tracks for the video
+        captions_response = youtube.captions().list(
+            part='snippet',
+            videoId=video_id
+        ).execute()
+        
+        caption_tracks = captions_response.get('items', [])
+        
+        # Find English caption track
+        english_track = None
+        for track in caption_tracks:
+            snippet = track.get('snippet', {})
+            if snippet.get('language') == 'en':
+                english_track = track
+                break
+        
+        if not english_track:
+            print(f"[YouTube API] No English captions found for video {video_id}")
+            return None
+        
+        caption_id = english_track['id']
+        
+        # Download the caption (Note: This requires OAuth2 for private videos)
+        # For public videos with auto-generated or manual captions, 
+        # we'll fall back to youtube-transcript-api which doesn't need OAuth
+        print(f"[YouTube API] Found English caption track: {caption_id}")
+        
+        # Use youtube-transcript-api to actually download the transcript
+        # (YouTube API v3 requires OAuth for caption download)
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
         segments = [
             {"start": seg["start"], "end": seg["start"] + seg["duration"], "text": seg["text"]}
             for seg in transcript
         ]
         text = " ".join(seg["text"] for seg in segments)
-        return {"source": "youtube_captions", "transcript_text": text, "segments": segments}
-    except Exception:
-        # Fallback to yt-dlp subtitles
-        ydl_opts = {
-            'skip_download': True,
-            'writesubtitles': True,
-            'subtitleslangs': ['en'],
-            'outtmpl': '%(id)s',
+        
+        return {
+            "source": "youtube_api_captions",
+            "transcript_text": text,
+            "segments": segments
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(youtube_url, download=False)
-            subs = info.get('subtitles', {})
-            if 'en' in subs:
-                # Download and parse the subtitle file as needed
-                pass
+        
+    except HttpError as e:
+        error_reason = e.error_details[0].get('reason') if e.error_details else 'unknown'
+        print(f"[YouTube API] HttpError: {error_reason} - {str(e)}")
+        return None
+    except Exception as e:
+        print(f"[YouTube API] Error fetching captions: {str(e)}")
+        return None
+
+def get_youtube_captions(youtube_url: str):
+    """
+    Fetch YouTube captions with multiple fallback strategies:
+    1. YouTube Data API v3 (most reliable, checks if captions exist)
+    2. youtube-transcript-api (direct caption fetch)
+    3. Return None to trigger audio download + ASR fallback
+    """
+    video_id = extract_youtube_id(youtube_url)
+    if not video_id:
+        print("[Captions] Invalid YouTube URL")
+        return None
+    
+    # Get API key from environment
+    youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+    
+    # Strategy 1: Try YouTube Data API v3 first (if API key is available)
+    if youtube_api_key:
+        print(f"[Captions] Attempting YouTube API for video {video_id}")
+        result = get_youtube_captions_with_api(video_id, youtube_api_key)
+        if result:
+            return result
+    else:
+        print("[Captions] No YOUTUBE_API_KEY found in environment")
+    
+    # Strategy 2: Fallback to youtube-transcript-api (direct scraping)
+    try:
+        print(f"[Captions] Attempting youtube-transcript-api for video {video_id}")
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
+        segments = [
+            {"start": seg["start"], "end": seg["start"] + seg["duration"], "text": seg["text"]}
+            for seg in transcript
+        ]
+        text = " ".join(seg["text"] for seg in segments)
+        return {
+            "source": "youtube_transcript_api",
+            "transcript_text": text,
+            "segments": segments
+        }
+    except (TranscriptsDisabled, NoTranscriptFound) as e:
+        print(f"[Captions] No transcript available: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"[Captions] youtube-transcript-api failed: {str(e)}")
         return None
 
 # --- Audio download and ASR ---
@@ -72,12 +150,16 @@ def download_youtube_audio(youtube_url: str, out_path: str):
         'nocheckcertificate': True,
         'no_warnings': False,
         'extract_flat': False,
-        # Add cookies support to avoid bot detection
-        'cookiesfrombrowser': ('chrome',) if os.path.exists(os.path.expanduser('~/Library/Application Support/Google/Chrome')) else None,
-        # Reduce memory usage
+        # Add user agent to avoid bot detection
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        # Reduce memory usage and improve reliability
         'socket_timeout': 30,
-        'retries': 3,
-        'fragment_retries': 3,
+        'retries': 5,
+        'fragment_retries': 5,
+        # Prefer formats that don't require additional processing
+        'prefer_free_formats': True,
+        # Skip unavailable fragments
+        'skip_unavailable_fragments': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([youtube_url])
